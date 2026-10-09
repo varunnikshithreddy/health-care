@@ -54,14 +54,33 @@ app.use('/api/food', foodAnalysisRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/history', historyRouter);
 
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const clientDistPath = path.resolve(__dirname, '../../client/dist');
+
+// Serve Frontend SPA in production or when client/dist exists
+if (fs.existsSync(clientDistPath)) {
+  app.use(express.static(clientDistPath));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) {
+      return next();
+    }
+    res.sendFile(path.join(clientDistPath, 'index.html'));
+  });
+}
+
 // Global Error Handler
 app.use(errorHandler);
 
 // Start Server if directly executed
 if (process.env.NODE_ENV !== 'test') {
-  app.listen(config.port, () => {
+  app.listen(config.port, '0.0.0.0', () => {
     console.log(`\n======================================================`);
-    console.log(`🌿 LifeCare AI Server running on http://localhost:${config.port}`);
+    console.log(`🌿 LifeCare AI Server running on http://0.0.0.0:${config.port}`);
     console.log(`📊 Mode: ${config.nodeEnv}`);
     console.log(`🤖 AI Vision Model: ${config.gemini.model}`);
     console.log(`======================================================\n`);
