@@ -1,0 +1,137 @@
+// In-memory development store used when SUPABASE_URL / live database is not yet connected
+export interface DevStoreData {
+  profiles: Map<string, any>;
+  tasks: Map<string, any>;
+  completions: Map<string, any>; // key: `${userId}_${taskId}_${date}`
+  waterGoals: Map<string, any>;
+  waterEntries: Map<string, any[]>;
+  mealEntries: Map<string, any[]>;
+  subscriptions: Map<string, any[]>;
+  deliveryLogs: Map<string, any[]>;
+}
+
+export const devStore: DevStoreData = {
+  profiles: new Map(),
+  tasks: new Map(),
+  completions: new Map(),
+  waterGoals: new Map(),
+  waterEntries: new Map(),
+  mealEntries: new Map(),
+  subscriptions: new Map(),
+  deliveryLogs: new Map(),
+};
+
+// Seed default profile and routine for demo user if empty
+const demoUserId = '00000000-0000-0000-0000-000000000001';
+devStore.profiles.set(demoUserId, {
+  id: demoUserId,
+  display_name: 'Alex Rivera',
+  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York',
+  preferred_motivational_style: 'encouraging',
+  wake_up_time: '07:00',
+  bed_time: '22:30',
+  theme_preference: 'system',
+  encouragement_display_mode: 'toast',
+  onboarding_completed: true,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+});
+
+devStore.waterGoals.set(demoUserId, {
+  id: 'goal-1',
+  user_id: demoUserId,
+  daily_goal_ml: 2200,
+  preferred_serving_ml: 250,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+});
+
+const defaultDemoTasks = [
+  {
+    id: 't-1',
+    user_id: demoUserId,
+    title: 'Morning Awakening & Breathing',
+    description: 'Gentle wake-up and 5 deep mindful breaths',
+    category: 'Wake up',
+    local_time: '07:00',
+    timezone: 'UTC',
+    recurrence_type: 'daily',
+    recurrence_days: [0, 1, 2, 3, 4, 5, 6],
+    duration_minutes: 10,
+    reminder_enabled: true,
+    notification_message: 'Good morning! Rise gently and greet today with clarity.',
+    completion_message: 'Wonderful start! You greeted the day on your own terms.',
+    priority: 'high',
+    enabled: true,
+  },
+  {
+    id: 't-2',
+    user_id: demoUserId,
+    title: 'Hydrate Body & Mind',
+    description: 'Drink a tall glass of cool fresh water',
+    category: 'Drink water',
+    local_time: '07:30',
+    timezone: 'UTC',
+    recurrence_type: 'daily',
+    recurrence_days: [0, 1, 2, 3, 4, 5, 6],
+    duration_minutes: 5,
+    reminder_enabled: true,
+    notification_message: 'LifeCare AI — Water Break. Time to hydrate and awaken your body!',
+    completion_message: 'Well done! Hydrating first thing powers your focus and energy.',
+    priority: 'medium',
+    enabled: true,
+  },
+  {
+    id: 't-3',
+    user_id: demoUserId,
+    title: 'Balanced Breakfast',
+    description: 'Nutritious breakfast rich in protein and fiber',
+    category: 'Breakfast',
+    local_time: '08:30',
+    timezone: 'UTC',
+    recurrence_type: 'daily',
+    recurrence_days: [0, 1, 2, 3, 4, 5, 6],
+    duration_minutes: 30,
+    reminder_enabled: true,
+    notification_message: 'Your breakfast reminder is here. Take time to nourish yourself.',
+    completion_message: 'Great job fueling your morning with balanced nourishment!',
+    priority: 'medium',
+    enabled: true,
+  },
+  {
+    id: 't-4',
+    user_id: demoUserId,
+    title: 'Midday Walk & Stretch',
+    description: 'Step away from screen, stretch limbs or walk outside',
+    category: 'Exercise',
+    local_time: '14:00',
+    timezone: 'UTC',
+    recurrence_type: 'weekdays',
+    recurrence_days: [1, 2, 3, 4, 5],
+    duration_minutes: 15,
+    reminder_enabled: true,
+    notification_message: 'Time for a brief movement break! Release tension and refresh.',
+    completion_message: 'Fantastic! Every small movement supports your physical and mental balance.',
+    priority: 'low',
+    enabled: true,
+  },
+  {
+    id: 't-5',
+    user_id: demoUserId,
+    title: 'Restful Sleep Preparation',
+    description: 'Dim lights, put phone aside, read or unwind',
+    category: 'Sleep',
+    local_time: '22:15',
+    timezone: 'UTC',
+    recurrence_type: 'daily',
+    recurrence_days: [0, 1, 2, 3, 4, 5, 6],
+    duration_minutes: 20,
+    reminder_enabled: true,
+    notification_message: 'Sleep preparation reminder. Dim lights and let go of today.',
+    completion_message: 'Rest peacefully. You accomplished meaningful steps today.',
+    priority: 'high',
+    enabled: true,
+  },
+];
+
+defaultDemoTasks.forEach((t) => devStore.tasks.set(t.id, t));

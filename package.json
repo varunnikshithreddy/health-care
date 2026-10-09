@@ -1,0 +1,17 @@
+{
+  "name": "lifecare-ai",
+  "version": "1.0.0",
+  "description": "LifeCare AI - AI-Powered Personal Health, Daily Routine, Reminder & Food Calorie Tracking Platform",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "npm --prefix server run dev",
+    "dev:client": "npm --prefix client run dev",
+    "build": "npm --prefix server run build && npm --prefix client run build",
+    "test": "npm --prefix server test && npm --prefix client test",
+    "migrate": "npm --prefix server run migrate"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
