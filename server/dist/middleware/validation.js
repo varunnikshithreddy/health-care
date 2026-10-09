@@ -1,0 +1,45 @@
+import { ZodError } from 'zod';
+export const validateBody = (schema) => {
+    return async (req, res, next) => {
+        try {
+            req.body = await schema.parseAsync(req.body);
+            next();
+        }
+        catch (error) {
+            if (error instanceof ZodError) {
+                res.status(400).json({
+                    error: 'ValidationError',
+                    message: 'Invalid request payload',
+                    details: error.errors.map((e) => ({
+                        field: e.path.join('.'),
+                        message: e.message,
+                    })),
+                });
+                return;
+            }
+            next(error);
+        }
+    };
+};
+export const validateQuery = (schema) => {
+    return async (req, res, next) => {
+        try {
+            req.query = await schema.parseAsync(req.query);
+            next();
+        }
+        catch (error) {
+            if (error instanceof ZodError) {
+                res.status(400).json({
+                    error: 'ValidationError',
+                    message: 'Invalid query parameters',
+                    details: error.errors.map((e) => ({
+                        field: e.path.join('.'),
+                        message: e.message,
+                    })),
+                });
+                return;
+            }
+            next(error);
+        }
+    };
+};
