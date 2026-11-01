@@ -38,6 +38,7 @@ import {
   Calendar,
   Timer,
   AlertCircle,
+  Target,
 } from 'lucide-react';
 
 const CATEGORIES = [
@@ -123,7 +124,7 @@ const TIME_PERIODS = [
     label: 'Night & Rest',
     range: '09:00 PM – 05:00 AM',
     startHour: 21,
-    endHour: 29, // wraps past midnight
+    endHour: 29,
     icon: Moon,
     badgeVariant: 'purple' as const,
     bgClass: 'from-purple-500/10 to-transparent',
@@ -145,7 +146,6 @@ const QUICK_TIME_PRESETS = [
 
 const DURATION_PRESETS = [5, 15, 30, 45, 60, 90];
 
-// Time conversion helpers
 function format12Hour(timeStr: string): string {
   if (!timeStr || !timeStr.includes(':')) return timeStr || '--:--';
   const [hStr, mStr] = timeStr.split(':');
@@ -175,11 +175,11 @@ function getEndTime(timeStr: string, durationMinutes: number): string {
 function getPeriodForTime(timeStr: string) {
   if (!timeStr || !timeStr.includes(':')) return TIME_PERIODS[1];
   const h = parseInt(timeStr.split(':')[0], 10);
-  if (h >= 5 && h < 8) return TIME_PERIODS[0]; // Early Morning
-  if (h >= 8 && h < 12) return TIME_PERIODS[1]; // Morning
-  if (h >= 12 && h < 17) return TIME_PERIODS[2]; // Afternoon
-  if (h >= 17 && h < 21) return TIME_PERIODS[3]; // Evening
-  return TIME_PERIODS[4]; // Night
+  if (h >= 5 && h < 8) return TIME_PERIODS[0];
+  if (h >= 8 && h < 12) return TIME_PERIODS[1];
+  if (h >= 12 && h < 17) return TIME_PERIODS[2];
+  if (h >= 17 && h < 21) return TIME_PERIODS[3];
+  return TIME_PERIODS[4];
 }
 
 export const Schedule: React.FC = () => {
@@ -191,24 +191,27 @@ export const Schedule: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
-  // View state: 'timeline' (Time-first agenda), 'table' (Timetable matrix), 'hourly' (24-Hour Day Planner)
+  // View state
   const [viewMode, setViewMode] = useState<'timeline' | 'table' | 'hourly'>('timeline');
   const [selectedPeriodFilter, setSelectedPeriodFilter] = useState<string>('all');
 
-  // Form Fields - Structured for "For What Time? ➔ What is the Schedule?"
+  // Form Fields - Divided into 2 distinct columns:
+  // COLUMN 1: TIME FIELDS
   const [localTime, setLocalTime] = useState('08:00');
   const [durationMinutes, setDurationMinutes] = useState(15);
+  const [recurrenceType, setRecurrenceType] = useState('daily');
+  const [recurrenceDays, setRecurrenceDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
+
+  // COLUMN 2: ACTIVITY AT THIS TIME FIELDS
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('Custom activity');
-  const [recurrenceType, setRecurrenceType] = useState('daily');
-  const [recurrenceDays, setRecurrenceDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
+  const [priority, setPriority] = useState('medium');
   const [reminderEnabled, setReminderEnabled] = useState(true);
   const [notificationMessage, setNotificationMessage] = useState('');
   const [completionMessage, setCompletionMessage] = useState(
     'Great job! Every small step counts towards your wellbeing.'
   );
-  const [priority, setPriority] = useState('medium');
 
   const loadTasks = async () => {
     try {
@@ -229,15 +232,16 @@ export const Schedule: React.FC = () => {
     setEditingTask(null);
     setLocalTime(presetTime || '08:00');
     setDurationMinutes(15);
+    setRecurrenceType('daily');
+    setRecurrenceDays([0, 1, 2, 3, 4, 5, 6]);
+
     setTitle('');
     setDescription('');
     setCategory('Custom activity');
-    setRecurrenceType('daily');
-    setRecurrenceDays([0, 1, 2, 3, 4, 5, 6]);
+    setPriority('medium');
     setReminderEnabled(true);
     setNotificationMessage('');
     setCompletionMessage('Great job! Every small step counts towards your wellbeing.');
-    setPriority('medium');
   };
 
   const openCreateModal = (presetTime?: string) => {
@@ -249,17 +253,18 @@ export const Schedule: React.FC = () => {
     setEditingTask(task);
     setLocalTime(task.local_time || '08:00');
     setDurationMinutes(task.duration_minutes || 15);
+    setRecurrenceType(task.recurrence_type || 'daily');
+    setRecurrenceDays(task.recurrence_days || [0, 1, 2, 3, 4, 5, 6]);
+
     setTitle(task.title);
     setDescription(task.description || '');
     setCategory(task.category || 'Custom activity');
-    setRecurrenceType(task.recurrence_type || 'daily');
-    setRecurrenceDays(task.recurrence_days || [0, 1, 2, 3, 4, 5, 6]);
+    setPriority(task.priority || 'medium');
     setReminderEnabled(task.reminder_enabled !== false);
     setNotificationMessage(task.notification_message || '');
     setCompletionMessage(
       task.completion_message || 'Great job! Every small step counts towards your wellbeing.'
     );
-    setPriority(task.priority || 'medium');
     setIsModalOpen(true);
   };
 
@@ -388,7 +393,6 @@ export const Schedule: React.FC = () => {
     }
   };
 
-  // Group tasks by Time Period
   const tasksByPeriod = useMemo(() => {
     const map: Record<string, any[]> = {
       early_morning: [],
@@ -406,7 +410,6 @@ export const Schedule: React.FC = () => {
     return map;
   }, [tasks]);
 
-  // Determine current active or next upcoming activity
   const now = new Date();
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
   const formattedCurrentTime = `${now.getHours().toString().padStart(2, '0')}:${now
@@ -417,7 +420,6 @@ export const Schedule: React.FC = () => {
   const upcomingActivity = useMemo(() => {
     if (tasks.length === 0) return null;
 
-    // Check for currently active activity
     for (const t of tasks) {
       if (!t.enabled) continue;
       const [hStr, mStr] = t.local_time.split(':');
@@ -428,7 +430,6 @@ export const Schedule: React.FC = () => {
       }
     }
 
-    // Otherwise find the first next activity today
     for (const t of tasks) {
       if (!t.enabled) continue;
       const [hStr, mStr] = t.local_time.split(':');
@@ -438,7 +439,6 @@ export const Schedule: React.FC = () => {
       }
     }
 
-    // If none left today, the first activity tomorrow
     const firstActive = tasks.find((t) => t.enabled);
     if (firstActive) {
       return { type: 'tomorrow', task: firstActive };
@@ -446,7 +446,6 @@ export const Schedule: React.FC = () => {
     return null;
   }, [tasks, currentMinutes]);
 
-  // Hourly Planner Slots (from 05:00 to 23:00)
   const hourlySlots = useMemo(() => {
     const slots = [];
     for (let h = 5; h <= 23; h++) {
@@ -474,6 +473,8 @@ export const Schedule: React.FC = () => {
   const getCategoryMeta = (catId: string) => {
     return CATEGORIES.find((c) => c.id === catId) || CATEGORIES[CATEGORIES.length - 1];
   };
+
+  const currentPeriod = getPeriodForTime(localTime);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-200">
@@ -576,7 +577,7 @@ export const Schedule: React.FC = () => {
         </div>
       </div>
 
-      {/* Format Controls Bar: Switch between Timeline (Time->Schedule), Timetable Table, and 24h Planner */}
+      {/* Format Controls Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
         {/* Format Selector */}
         <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200/80 dark:border-slate-700 self-start">
@@ -617,9 +618,6 @@ export const Schedule: React.FC = () => {
 
         {/* Time Period Filter Pills */}
         <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-xs font-semibold text-slate-400 mr-1 hidden lg:inline">
-            Time Filter:
-          </span>
           <button
             onClick={() => setSelectedPeriodFilter('all')}
             className={`px-2.5 py-1 rounded-xl text-xs font-medium transition-all ${
@@ -668,9 +666,7 @@ export const Schedule: React.FC = () => {
         />
       ) : (
         <>
-          {/* ======================================================== */}
-          {/* FORMAT 1: TIMELINE (TIME-FIRST AGENDA)                   */}
-          {/* ======================================================== */}
+          {/* FORMAT 1: TIMELINE */}
           {viewMode === 'timeline' && (
             <div className="space-y-8">
               {filteredPeriods.map((period) => {
@@ -714,7 +710,6 @@ export const Schedule: React.FC = () => {
                       </Button>
                     </div>
 
-                    {/* Timeline items for this period */}
                     {periodTasks.length === 0 ? (
                       <div className="p-4 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
                         <span>No routines scheduled for {period.label.toLowerCase()} ({period.range}).</span>
@@ -743,9 +738,8 @@ export const Schedule: React.FC = () => {
                               }`}
                             >
                               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                {/* Left & Center: Time Slot ➔ Schedule Mapping */}
                                 <div className="flex items-start gap-4">
-                                  {/* Prominent Time Slot Block (FOR WHAT TIME?) */}
+                                  {/* Prominent Time Slot Block */}
                                   <div className="w-24 sm:w-28 rounded-2xl bg-gradient-to-b from-brand-50 to-brand-100/50 dark:from-brand-950/60 dark:to-brand-900/30 text-brand-800 dark:text-brand-200 p-2.5 flex flex-col items-center justify-center shrink-0 border border-brand-200/60 dark:border-brand-800/40 shadow-xs">
                                     <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-brand-600 dark:text-brand-400">
                                       <Clock className="w-3 h-3" />
@@ -762,20 +756,18 @@ export const Schedule: React.FC = () => {
                                     </div>
                                   </div>
 
-                                  {/* Scheduled Activity Details (WHAT IS THE SCHEDULE?) */}
+                                  {/* Scheduled Activity Details */}
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 flex-wrap mb-1">
                                       <h3 className="font-extrabold text-base sm:text-lg text-slate-900 dark:text-white">
                                         {task.title}
                                       </h3>
 
-                                      {/* Category Badge with Icon */}
                                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200/50 dark:border-emerald-800/40">
                                         <CatIcon className="w-3 h-3" />
                                         {task.category}
                                       </span>
 
-                                      {/* Priority Badge */}
                                       <Badge
                                         variant={
                                           task.priority === 'high'
@@ -802,7 +794,6 @@ export const Schedule: React.FC = () => {
                                       </p>
                                     )}
 
-                                    {/* Timing & Notification Metadata */}
                                     <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap mt-1">
                                       <span className="flex items-center gap-1">
                                         <Calendar className="w-3.5 h-3.5 text-slate-400" />
@@ -826,7 +817,6 @@ export const Schedule: React.FC = () => {
                                       )}
                                     </div>
 
-                                    {/* Personalized Encouragement Quote */}
                                     {task.completion_message && (
                                       <div className="mt-2.5 p-2.5 rounded-xl bg-sand-50/80 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-800 flex items-center gap-2 text-xs">
                                         <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
@@ -838,7 +828,7 @@ export const Schedule: React.FC = () => {
                                   </div>
                                 </div>
 
-                                {/* Right: Action Buttons */}
+                                {/* Actions */}
                                 <div className="flex items-center gap-1 self-end md:self-center shrink-0">
                                   <button
                                     onClick={() => handleToggleEnabled(task)}
@@ -875,7 +865,6 @@ export const Schedule: React.FC = () => {
                                 </div>
                               </div>
 
-                              {/* Inline Delete Confirmation */}
                               {deleteConfirmId === task.id && (
                                 <div className="mt-4 p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs">
                                   <span className="text-rose-800 dark:text-rose-200 font-medium">
@@ -910,9 +899,7 @@ export const Schedule: React.FC = () => {
             </div>
           )}
 
-          {/* ======================================================== */}
-          {/* FORMAT 2: TIMETABLE TABLE (TIME -> SCHEDULE MATRIX)      */}
-          {/* ======================================================== */}
+          {/* FORMAT 2: TABLE */}
           {viewMode === 'table' && (
             <Card className="p-0 overflow-hidden border border-slate-200 dark:border-slate-800">
               <div className="overflow-x-auto">
@@ -942,7 +929,6 @@ export const Schedule: React.FC = () => {
                             !task.enabled ? 'opacity-50' : ''
                           }`}
                         >
-                          {/* Time Slot Column */}
                           <td className="py-3.5 px-4 whitespace-nowrap">
                             <div className="flex items-center gap-2">
                               <span className="font-extrabold text-sm text-slate-900 dark:text-white">
@@ -955,8 +941,6 @@ export const Schedule: React.FC = () => {
                               {task.local_time} (24h)
                             </span>
                           </td>
-
-                          {/* Scheduled Activity Column */}
                           <td className="py-3.5 px-4">
                             <div className="font-bold text-slate-900 dark:text-white text-sm">
                               {task.title}
@@ -967,21 +951,15 @@ export const Schedule: React.FC = () => {
                               </div>
                             )}
                           </td>
-
-                          {/* Category */}
                           <td className="py-3.5 px-4 whitespace-nowrap">
                             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200/50 dark:border-emerald-800/40">
                               <CatIcon className="w-3 h-3" />
                               {task.category}
                             </span>
                           </td>
-
-                          {/* Duration */}
                           <td className="py-3.5 px-4 whitespace-nowrap font-medium text-slate-700 dark:text-slate-300">
                             {task.duration_minutes} mins
                           </td>
-
-                          {/* Recurrence */}
                           <td className="py-3.5 px-4 whitespace-nowrap text-slate-600 dark:text-slate-400">
                             {task.recurrence_type === 'daily'
                               ? 'Daily'
@@ -991,8 +969,6 @@ export const Schedule: React.FC = () => {
                               ? 'Sat – Sun'
                               : 'Custom Days'}
                           </td>
-
-                          {/* Alert & Encouragement */}
                           <td className="py-3.5 px-4 max-w-xs">
                             <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
                               {task.reminder_enabled ? (
@@ -1009,8 +985,6 @@ export const Schedule: React.FC = () => {
                               </div>
                             )}
                           </td>
-
-                          {/* Actions */}
                           <td className="py-3.5 px-4 text-right whitespace-nowrap">
                             <div className="inline-flex items-center gap-1">
                               <button
@@ -1049,9 +1023,7 @@ export const Schedule: React.FC = () => {
             </Card>
           )}
 
-          {/* ======================================================== */}
-          {/* FORMAT 3: 24-HOUR DAY PLANNER (HOURLY TIMETABLE GRID)     */}
-          {/* ======================================================== */}
+          {/* FORMAT 3: 24-HOUR PLANNER */}
           {viewMode === 'hourly' && (
             <div className="space-y-3">
               <div className="text-xs text-slate-500 font-medium px-1">
@@ -1071,7 +1043,6 @@ export const Schedule: React.FC = () => {
                           : 'bg-slate-50/50 dark:bg-slate-900/30 border-dashed border-slate-200 dark:border-slate-800 hover:border-brand-400'
                       }`}
                     >
-                      {/* Left: Hour Header */}
                       <div className="w-28 flex items-center gap-2.5 shrink-0">
                         <div className="w-2 h-2 rounded-full bg-brand-500" />
                         <div>
@@ -1082,7 +1053,6 @@ export const Schedule: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* Middle: Scheduled activities or empty state */}
                       <div className="flex-1 flex flex-wrap gap-2.5 items-center">
                         {hasTasks ? (
                           slot.tasks.map((task) => {
@@ -1118,7 +1088,6 @@ export const Schedule: React.FC = () => {
                         )}
                       </div>
 
-                      {/* Right: Quick Add Button for this hour */}
                       <Button
                         size="sm"
                         variant="ghost"
@@ -1138,292 +1107,368 @@ export const Schedule: React.FC = () => {
       )}
 
       {/* ======================================================== */}
-      {/* COMPLETELY REDESIGNED MODAL                              */}
-      {/* STRUCTURED AS: "FOR WHAT TIME? ➔ WHAT IS THE SCHEDULE?" */}
+      {/* 2-COLUMN STRUCTURE FOR ASKING SCHEDULE                   */}
+      {/* COLUMN 1: TIME  |  COLUMN 2: ACTIVITY AT THIS TIME       */}
       {/* ======================================================== */}
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title={editingTask ? 'Edit Scheduled Activity' : 'Add Activity to Timetable'}
-        description="First specify for what time the routine is scheduled, then define the activity details and motivation."
-        maxWidth="lg"
+        description="Divided into two columns: Set the scheduled time on the left, and describe the activity at that time on the right."
+        maxWidth="4xl"
       >
         <form onSubmit={handleSaveTask} className="space-y-6">
-          {/* STEP 1: FOR WHAT TIME? (TIMING ARCHITECTURE) */}
-          <div className="p-4 rounded-2xl bg-gradient-to-br from-brand-50/70 to-emerald-50/30 dark:from-brand-950/40 dark:to-slate-900 border border-brand-200/80 dark:border-brand-900/40 space-y-3.5">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-extrabold uppercase tracking-wider text-brand-900 dark:text-brand-300 flex items-center gap-1.5">
-                <Clock className="w-4 h-4 text-brand-600" />
-                <span>1. For What Time? (Schedule Timing) *</span>
-              </label>
-
-              {/* Dynamic Slot Preview */}
-              <span className="text-xs px-2.5 py-0.5 rounded-full bg-white dark:bg-slate-800 text-brand-700 dark:text-brand-300 font-bold border border-brand-200/60 dark:border-brand-800 shadow-2xs">
-                Slot: {format12Hour(localTime)} – {getEndTime(localTime, durationMinutes)}
+          {/* Top Live Sync Pill Banner */}
+          <div className="p-3 rounded-2xl bg-gradient-to-r from-brand-500/10 via-emerald-500/5 to-transparent border border-brand-500/20 dark:border-brand-500/30 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-brand-500 animate-pulse" />
+              <span className="font-bold text-slate-800 dark:text-slate-200">
+                Scheduled Slot:
               </span>
+              <span className="font-extrabold text-brand-700 dark:text-brand-300">
+                {format12Hour(localTime)} – {getEndTime(localTime, durationMinutes)}
+              </span>
+              <span className="text-slate-400">({durationMinutes} min • {currentPeriod.label})</span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Start Time (24h & 12h)
-                </label>
-                <input
-                  type="time"
-                  required
-                  value={localTime}
-                  onChange={(e) => setLocalTime(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-bold focus:ring-2 focus:ring-brand-500 outline-none shadow-2xs"
-                />
+            <div className="flex items-center gap-2">
+              <span className="text-slate-400">Activity:</span>
+              <span className="font-bold text-slate-900 dark:text-white">
+                {title.trim() ? title.trim() : '(Enter title in Column 2)'}
+              </span>
+            </div>
+          </div>
+
+          {/* TWO EQUAL COLUMNS */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+            {/* =================================================== */}
+            {/* COLUMN 1: TIME (FOR WHAT TIME?)                     */}
+            {/* =================================================== */}
+            <div className="p-4 sm:p-5 rounded-3xl bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-800 space-y-4">
+              {/* Column 1 Title */}
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200/70 dark:border-slate-700/70">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-brand-100 dark:bg-brand-950/70 text-brand-700 dark:text-brand-300 flex items-center justify-center font-extrabold text-xs">
+                    1
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <Clock className="w-4 h-4 text-brand-600" />
+                      <span>COLUMN 1: TIME</span>
+                    </h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      For what time is this routine scheduled?
+                    </p>
+                  </div>
+                </div>
+
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-brand-100 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300">
+                  {format12Hour(localTime)}
+                </span>
               </div>
 
+              {/* Exact Time Input & 12h Display */}
               <div>
-                <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Duration (Minutes)
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                  Start Time *
                 </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="time"
+                    required
+                    value={localTime}
+                    onChange={(e) => setLocalTime(e.target.value)}
+                    className="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-base font-extrabold focus:ring-2 focus:ring-brand-500 outline-none shadow-xs"
+                  />
+                  <div className="px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-bold text-brand-700 dark:text-brand-300 shrink-0">
+                    {format12Hour(localTime)}
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Time Presets */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                  Quick Time Presets:
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                  {QUICK_TIME_PRESETS.map((preset) => {
+                    const PresetIcon = preset.icon;
+                    const isSelected = localTime === preset.time;
+                    return (
+                      <button
+                        key={preset.time}
+                        type="button"
+                        onClick={() => setLocalTime(preset.time)}
+                        className={`p-2 rounded-xl text-xs font-medium border transition-all flex items-center gap-1.5 ${
+                          isSelected
+                            ? 'border-brand-500 bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold ring-1 ring-brand-500 shadow-xs'
+                            : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:border-slate-300'
+                        }`}
+                      >
+                        <PresetIcon className="w-3.5 h-3.5 text-brand-500 shrink-0" />
+                        <span className="truncate">{preset.label}</span>
+                        <span className="text-[10px] opacity-70 ml-auto">{preset.time}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Duration in Minutes */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                    Duration:
+                  </label>
+                  <span className="text-xs font-extrabold text-brand-700 dark:text-brand-300">
+                    {durationMinutes} minutes
+                  </span>
+                </div>
                 <div className="flex gap-1.5 flex-wrap">
                   {DURATION_PRESETS.map((mins) => (
                     <button
                       key={mins}
                       type="button"
                       onClick={() => setDurationMinutes(mins)}
-                      className={`px-2.5 py-2 rounded-xl text-xs font-semibold transition-all ${
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
                         durationMinutes === mins
-                          ? 'bg-brand-600 text-white shadow-2xs'
-                          : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50'
+                          ? 'bg-brand-600 text-white shadow-xs'
+                          : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-100'
                       }`}
                     >
                       {mins}m
                     </button>
                   ))}
+                  <input
+                    type="number"
+                    min="1"
+                    max="360"
+                    value={durationMinutes}
+                    onChange={(e) => setDurationMinutes(parseInt(e.target.value, 10) || 15)}
+                    className="w-16 px-2 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-center outline-none focus:ring-1 focus:ring-brand-500"
+                    placeholder="Custom"
+                  />
                 </div>
               </div>
-            </div>
 
-            {/* Quick Time Presets */}
-            <div>
-              <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block mb-1.5">
-                Quick Preset Times:
-              </span>
-              <div className="flex gap-1.5 flex-wrap">
-                {QUICK_TIME_PRESETS.map((preset) => (
-                  <button
-                    key={preset.time}
-                    type="button"
-                    onClick={() => setLocalTime(preset.time)}
-                    className={`px-2.5 py-1 rounded-xl text-xs font-medium border transition-all flex items-center gap-1 ${
-                      localTime === preset.time
-                        ? 'border-brand-500 bg-white dark:bg-slate-800 text-brand-700 dark:text-brand-300 font-bold ring-1 ring-brand-500'
-                        : 'border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 hover:bg-white'
-                    }`}
-                  >
-                    <preset.icon className="w-3 h-3 text-brand-500" />
-                    <span>{preset.label}</span>
-                    <span className="text-[10px] opacity-70">({preset.period})</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* STEP 2: WHAT IS THE SCHEDULE? (ACTIVITY DETAILS) */}
-          <div className="space-y-4">
-            <label className="text-xs font-extrabold uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-1.5">
-              <CalendarClock className="w-4 h-4 text-brand-600" />
-              <span>2. What is the Schedule? (Activity Details) *</span>
-            </label>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Activity Title *
-              </label>
-              <input
-                type="text"
-                required
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g. Morning Hydration, Midday Walk, Healthy Lunch, Study Session"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500 outline-none shadow-2xs font-medium"
-              />
-            </div>
-
-            {/* Category Selector with visual buttons */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                Category
-              </label>
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                {CATEGORIES.map((cat) => {
-                  const CatIcon = cat.icon;
-                  const isSelected = category === cat.id;
-                  return (
+              {/* Recurrence Schedule */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                  When Does It Repeat?
+                </label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {[
+                    { id: 'daily', label: 'Every Day' },
+                    { id: 'weekdays', label: 'Weekdays (Mon–Fri)' },
+                    { id: 'weekends', label: 'Weekends (Sat–Sun)' },
+                    { id: 'selected_days', label: 'Custom Days' },
+                  ].map((rec) => (
                     <button
-                      key={cat.id}
+                      key={rec.id}
                       type="button"
-                      onClick={() => setCategory(cat.id)}
-                      className={`p-2 rounded-xl text-xs font-medium border text-left flex items-center gap-1.5 transition-all ${
-                        isSelected
-                          ? 'border-brand-500 bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold ring-1 ring-brand-500'
-                          : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50'
+                      onClick={() => setRecurrenceType(rec.id)}
+                      className={`p-2 rounded-xl text-xs font-medium border text-center transition-all ${
+                        recurrenceType === rec.id
+                          ? 'border-brand-500 bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold ring-1 ring-brand-500 shadow-xs'
+                          : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400'
                       }`}
                     >
-                      <CatIcon className="w-3.5 h-3.5 text-brand-500 shrink-0" />
-                      <span className="truncate">{cat.label}</span>
+                      {rec.label}
                     </button>
-                  );
-                })}
+                  ))}
+                </div>
+
+                {recurrenceType === 'selected_days' && (
+                  <div className="mt-2 p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 flex gap-1 justify-between">
+                    {WEEKDAYS.map((w) => {
+                      const isSelected = recurrenceDays.includes(w.day);
+                      return (
+                        <button
+                          key={w.day}
+                          type="button"
+                          onClick={() => toggleDay(w.day)}
+                          className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
+                            isSelected
+                              ? 'bg-brand-600 text-white'
+                              : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          {w.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            {/* =================================================== */}
+            {/* COLUMN 2: ACTIVITY AT THIS TIME                     */}
+            {/* =================================================== */}
+            <div className="p-4 sm:p-5 rounded-3xl bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/90 dark:border-slate-800 space-y-4">
+              {/* Column 2 Title */}
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200/70 dark:border-slate-700/70">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 flex items-center justify-center font-extrabold text-xs">
+                    2
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <Target className="w-4 h-4 text-emerald-600" />
+                      <span>COLUMN 2: ACTIVITY AT THIS TIME</span>
+                    </h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      What is the activity scheduled at {format12Hour(localTime)}?
+                    </p>
+                  </div>
+                </div>
+
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300">
+                  {category}
+                </span>
+              </div>
+
+              {/* Activity Title */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Optional Description / Goal
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                  Activity Title *
                 </label>
                 <input
                   type="text"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="e.g. 500ml warm water with lemon"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500 outline-none shadow-2xs"
+                  required
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="e.g. Midday Hydration, Morning Walk, Reading"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-sm font-semibold focus:ring-2 focus:ring-brand-500 outline-none shadow-xs"
                 />
               </div>
 
+              {/* Category Selection Grid */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Priority
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                  Activity Category
                 </label>
-                <select
-                  value={priority}
-                  onChange={(e) => setPriority(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-brand-500 outline-none shadow-2xs"
-                >
-                  <option value="low">Low Priority</option>
-                  <option value="medium">Medium Priority</option>
-                  <option value="high">High Priority</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* STEP 3: RECURRENCE SCHEDULE */}
-          <div className="space-y-3">
-            <label className="text-xs font-extrabold uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-1.5">
-              <Calendar className="w-4 h-4 text-brand-600" />
-              <span>3. Recurrence Schedule</span>
-            </label>
-
-            <div className="grid grid-cols-4 gap-2">
-              {[
-                { id: 'daily', label: 'Every Day' },
-                { id: 'weekdays', label: 'Weekdays' },
-                { id: 'weekends', label: 'Weekends' },
-                { id: 'selected_days', label: 'Custom Days' },
-              ].map((rec) => (
-                <button
-                  key={rec.id}
-                  type="button"
-                  onClick={() => setRecurrenceType(rec.id)}
-                  className={`py-2 px-2.5 rounded-xl text-xs font-medium border text-center transition-all ${
-                    recurrenceType === rec.id
-                      ? 'border-brand-500 bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold ring-1 ring-brand-500'
-                      : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
-                  }`}
-                >
-                  {rec.label}
-                </button>
-              ))}
-            </div>
-
-            {recurrenceType === 'selected_days' && (
-              <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700">
-                <span className="text-xs font-medium text-slate-600 dark:text-slate-300 block mb-2">
-                  Select Days of Week:
-                </span>
-                <div className="flex gap-1.5">
-                  {WEEKDAYS.map((w) => {
-                    const isSelected = recurrenceDays.includes(w.day);
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                  {CATEGORIES.map((cat) => {
+                    const CatIcon = cat.icon;
+                    const isSelected = category === cat.id;
                     return (
                       <button
-                        key={w.day}
+                        key={cat.id}
                         type="button"
-                        onClick={() => toggleDay(w.day)}
-                        className={`w-9 h-9 rounded-xl text-xs font-bold transition-all ${
+                        onClick={() => setCategory(cat.id)}
+                        className={`p-2 rounded-xl text-xs font-medium border text-left flex items-center gap-1.5 transition-all ${
                           isSelected
-                            ? 'bg-brand-600 text-white shadow-2xs'
-                            : 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600'
+                            ? 'border-brand-500 bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-bold ring-1 ring-brand-500 shadow-xs'
+                            : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:border-slate-300'
                         }`}
                       >
-                        {w.label}
+                        <CatIcon className="w-3.5 h-3.5 text-brand-500 shrink-0" />
+                        <span className="truncate">{cat.label}</span>
                       </button>
                     );
                   })}
                 </div>
               </div>
-            )}
-          </div>
 
-          {/* STEP 4: NOTIFICATIONS & MOTIVATION */}
-          <div className="space-y-3.5">
-            <label className="text-xs font-extrabold uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-1.5">
-              <Bell className="w-4 h-4 text-brand-600" />
-              <span>4. Reminders & Motivation</span>
-            </label>
+              {/* Description & Priority */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                    Goal / Note (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="e.g. 500ml water or 15 pushups"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-brand-500 outline-none shadow-xs"
+                  />
+                </div>
 
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="reminder_toggle"
-                checked={reminderEnabled}
-                onChange={(e) => setReminderEnabled(e.target.checked)}
-                className="h-4 w-4 rounded text-brand-600 focus:ring-brand-500 border-slate-300 accent-brand-600"
-              />
-              <label
-                htmlFor="reminder_toggle"
-                className="text-xs text-slate-700 dark:text-slate-300 font-medium"
-              >
-                Send browser reminder alert at {format12Hour(localTime)}
-              </label>
-            </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                    Priority
+                  </label>
+                  <select
+                    value={priority}
+                    onChange={(e) => setPriority(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-semibold focus:ring-2 focus:ring-brand-500 outline-none shadow-xs"
+                  >
+                    <option value="low">Low Priority</option>
+                    <option value="medium">Medium Priority</option>
+                    <option value="high">High Priority</option>
+                  </select>
+                </div>
+              </div>
 
-            {reminderEnabled && (
-              <div>
-                <input
-                  type="text"
-                  value={notificationMessage}
-                  onChange={(e) => setNotificationMessage(e.target.value)}
-                  placeholder={`e.g. LifeCare AI — It's ${format12Hour(localTime)}. Time for ${title || 'your scheduled activity'}!`}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-brand-500 outline-none"
+              {/* Reminders & Notification Alert */}
+              <div className="space-y-2 pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="reminder_toggle_2col"
+                    checked={reminderEnabled}
+                    onChange={(e) => setReminderEnabled(e.target.checked)}
+                    className="h-4 w-4 rounded text-brand-600 focus:ring-brand-500 border-slate-300 accent-brand-600"
+                  />
+                  <label
+                    htmlFor="reminder_toggle_2col"
+                    className="text-xs text-slate-700 dark:text-slate-300 font-semibold"
+                  >
+                    Send browser reminder alert at {format12Hour(localTime)}
+                  </label>
+                </div>
+
+                {reminderEnabled && (
+                  <input
+                    type="text"
+                    value={notificationMessage}
+                    onChange={(e) => setNotificationMessage(e.target.value)}
+                    placeholder={`e.g. LifeCare AI — Time for ${title || 'your scheduled activity'} at ${format12Hour(localTime)}!`}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-brand-500 outline-none"
+                  />
+                )}
+              </div>
+
+              {/* Personalized Encouragement Words */}
+              <div className="p-3 rounded-2xl bg-brand-50/70 dark:bg-brand-950/40 border border-brand-200/70 dark:border-brand-900/40">
+                <label className="block text-xs font-bold text-brand-900 dark:text-brand-200 uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Encouragement Words *
+                </label>
+                <textarea
+                  required
+                  rows={2}
+                  value={completionMessage}
+                  onChange={(e) => setCompletionMessage(e.target.value)}
+                  placeholder="e.g. Great job! Every small step counts towards your wellbeing."
+                  className="w-full px-3 py-1.5 rounded-xl border border-brand-300 dark:border-brand-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-brand-500 outline-none"
                 />
               </div>
-            )}
-
-            <div className="p-3.5 rounded-2xl bg-brand-50/60 dark:bg-brand-950/30 border border-brand-200/60 dark:border-brand-900/40">
-              <label className="block text-xs font-bold text-brand-900 dark:text-brand-200 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-amber-500" /> Personalized Encouragement Words *
-              </label>
-              <textarea
-                required
-                rows={2}
-                value={completionMessage}
-                onChange={(e) => setCompletionMessage(e.target.value)}
-                placeholder="e.g. Well done! I am staying consistent with my goals."
-                className="w-full px-3.5 py-2 rounded-xl border border-brand-300 dark:border-brand-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-brand-500 outline-none"
-              />
-              <p className="text-[11px] text-brand-700 dark:text-brand-300 mt-1">
-                This exact message will appear when you mark this task complete.
-              </p>
             </div>
           </div>
 
-          {/* Form Actions */}
-          <div className="pt-4 flex justify-end gap-3 border-t border-slate-100 dark:border-slate-800">
-            <Button type="button" variant="ghost" onClick={() => setIsModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" isLoading={submitting}>
-              {editingTask ? 'Save Timetable Changes' : 'Schedule Activity'}
-            </Button>
+          {/* Modal Footer Actions */}
+          <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-200 dark:border-slate-800">
+            <div className="text-xs text-slate-500 hidden sm:block">
+              {title ? (
+                <span>
+                  Ready to schedule <strong className="text-slate-900 dark:text-white">{title}</strong> for <strong className="text-brand-600 dark:text-brand-400">{format12Hour(localTime)}</strong>.
+                </span>
+              ) : (
+                <span>Set time in Column 1 and activity title in Column 2.</span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3 self-end sm:self-auto">
+              <Button type="button" variant="ghost" onClick={() => setIsModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" isLoading={submitting}>
+                {editingTask ? 'Save Timetable Changes' : 'Schedule Activity'}
+              </Button>
+            </div>
           </div>
         </form>
       </Modal>
