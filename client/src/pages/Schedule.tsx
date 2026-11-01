@@ -183,7 +183,7 @@ function getPeriodForTime(timeStr: string) {
 }
 
 export const Schedule: React.FC = () => {
-  const { showToast } = useNotification();
+  const { showToast, triggerLiveReminder, permission, requestPermission } = useNotification();
   const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -474,6 +474,23 @@ export const Schedule: React.FC = () => {
     return CATEGORIES.find((c) => c.id === catId) || CATEGORIES[CATEGORIES.length - 1];
   };
 
+  const handleTestReminder = () => {
+    const activeOrFirst = tasks.find((t) => t.enabled) || tasks[0];
+    const testTask = activeOrFirst || {
+      id: 'demo-reminder',
+      title: 'Water & Mindful Breathing Break',
+      category: 'Drink water',
+      local_time: formattedCurrentTime,
+      duration_minutes: 5,
+      notification_message: 'Time for a wellness break! Drink water and take 5 deep breaths.',
+      completion_message: 'Wonderful! You just recharged your body and mind.',
+      reminder_enabled: true,
+      enabled: true,
+    };
+    triggerLiveReminder(testTask);
+    showToast(`Showing live reminder dialog for "${testTask.title}"`, 'info');
+  };
+
   const currentPeriod = getPeriodForTime(localTime);
 
   return (
@@ -498,6 +515,16 @@ export const Schedule: React.FC = () => {
           <Button
             variant="outline"
             size="sm"
+            onClick={handleTestReminder}
+            leftIcon={<Bell className="w-4 h-4 text-amber-500 animate-pulse" />}
+            className="border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
+            title="Preview how on-screen reminders look and chime"
+          >
+            Test Screen Reminder
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleSeedDefaults}
             leftIcon={<RefreshCw className="w-4 h-4 text-brand-600" />}
           >
@@ -512,6 +539,33 @@ export const Schedule: React.FC = () => {
           </Button>
         </div>
       </div>
+
+      {/* Screen Reminder & Notification Permission Alert */}
+      {permission !== 'granted' && (
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-transparent border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-3 text-amber-800 dark:text-amber-200">
+            <div className="p-2 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 shrink-0">
+              <Bell className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <p className="font-bold text-slate-900 dark:text-white text-sm">
+                Get reminders on your screen at the scheduled time
+              </p>
+              <p className="text-slate-600 dark:text-slate-300 mt-0.5">
+                Keep LifeCare open in your browser. Reminders will pop up on your screen with an audio chime the moment each activity is due.
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={requestPermission}
+            className="text-xs shrink-0 border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
+          >
+            Enable Browser Alerts
+          </Button>
+        </div>
+      )}
 
       {/* Real-time Time & "Next Up" Live Banner */}
       <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-brand-500/10 via-brand-500/5 to-transparent border border-brand-500/20 dark:border-brand-500/30 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -831,6 +885,16 @@ export const Schedule: React.FC = () => {
                                 {/* Actions */}
                                 <div className="flex items-center gap-1 self-end md:self-center shrink-0">
                                   <button
+                                    onClick={() => {
+                                      triggerLiveReminder(task);
+                                      showToast(`Triggered test alert for "${task.title}"`, 'info');
+                                    }}
+                                    className="p-2 text-slate-400 hover:text-amber-500 rounded-xl hover:bg-amber-50 dark:hover:bg-amber-950/40 transition-colors"
+                                    title="Test On-Screen Reminder for this Routine"
+                                  >
+                                    <Bell className="w-4 h-4" />
+                                  </button>
+                                  <button
                                     onClick={() => handleToggleEnabled(task)}
                                     className={`p-2 rounded-xl transition-colors ${
                                       task.enabled
@@ -987,6 +1051,16 @@ export const Schedule: React.FC = () => {
                           </td>
                           <td className="py-3.5 px-4 text-right whitespace-nowrap">
                             <div className="inline-flex items-center gap-1">
+                              <button
+                                onClick={() => {
+                                  triggerLiveReminder(task);
+                                  showToast(`Triggered test alert for "${task.title}"`, 'info');
+                                }}
+                                className="p-1.5 text-slate-400 hover:text-amber-500 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/40"
+                                title="Test Reminder"
+                              >
+                                <Bell className="w-3.5 h-3.5" />
+                              </button>
                               <button
                                 onClick={() => handleToggleEnabled(task)}
                                 className={`p-1.5 rounded-lg transition-colors ${

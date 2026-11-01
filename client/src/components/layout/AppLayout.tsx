@@ -5,6 +5,7 @@ import { Sidebar } from './Sidebar';
 import { MobileNav } from './MobileNav';
 import { ToastContainer } from '../feedback/ToastContainer';
 import { EncouragementModal } from '../feedback/EncouragementModal';
+import { LiveReminderModal } from '../feedback/LiveReminderModal';
 
 export const AppLayout: React.FC = () => {
   return (
@@ -21,6 +22,7 @@ export const AppLayout: React.FC = () => {
       <MobileNav />
       <ToastContainer />
       <EncouragementModal />
+      <LiveReminderModal />
     </div>
   );
 };
