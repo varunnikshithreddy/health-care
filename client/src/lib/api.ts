@@ -319,29 +319,35 @@ export async function apiRequest<T = any>(
       headers,
     });
 
-    // If endpoint is not found (404) on static hosting like Vercel, seamlessly fallback to local store
-    if (response.status === 404) {
-      console.info(`API endpoint ${endpoint} returned 404. Falling back to local offline store.`);
-      return handleLocalFallback(endpoint, options) as T;
-    }
-
     const isJson = response.headers.get('content-type')?.includes('application/json');
     const data = isJson ? await response.json() : await response.text();
 
-    if (!response.ok) {
+    // If server returned error or static response (404 Not Found, 405 Method Not Allowed on static Vercel, 500+, or HTML)
+    if (!response.ok || !isJson) {
+      if (
+        response.status === 404 ||
+        response.status === 405 ||
+        response.status >= 500 ||
+        !isJson
+      ) {
+        console.info(
+          `Static host response ${response.status} for ${endpoint}. Seamlessly using local store.`
+        );
+        return handleLocalFallback(endpoint, options) as T;
+      }
+
       const errorMsg =
-        isJson && data.message ? data.message : `Request failed with status ${response.status}`;
+        isJson && data && data.message ? data.message : `Request failed with status ${response.status}`;
       throw new ApiError(errorMsg, response.status, data);
     }
 
     return data as T;
   } catch (err: any) {
-    // If it's a network error or fetch failure, use local fallback
-    if (err instanceof TypeError || (err.message && err.message.includes('fetch'))) {
-      console.info(`Network unreachable for ${endpoint}. Using local offline store.`);
-      return handleLocalFallback(endpoint, options) as T;
+    if (err instanceof ApiError) {
+      throw err;
     }
-    throw err;
+    console.info(`Network or parse failure for ${endpoint}. Seamlessly using local store.`);
+    return handleLocalFallback(endpoint, options) as T;
   }
 }
 
